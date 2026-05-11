@@ -1,23 +1,23 @@
+# Import libraries needed for reading the CSV file, working with SQLite, and handling file paths
 import pandas as pd
 import sqlite3
 from pathlib import Path
 
+# Set the project root folder
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Set file paths for the raw FEMA data and the SQLite database
 csv_path = BASE_DIR / "data" / "raw" / "DisasterDeclarationsSummaries.csv"
 db_path = BASE_DIR / "database" / "disasters.db"
 
-# Read CSV
+# Read the FEMA CSV file into a pandas DataFrame
 df = pd.read_csv(csv_path)
 
-# Connect to SQLite
+# Connect to the SQLite database
 conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
 
-# ----------------------------
-# Create normalized tables
-# ----------------------------
-
+# Create database tables
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS states (
     state_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,10 +47,7 @@ CREATE TABLE IF NOT EXISTS disasters (
 )
 """)
 
-# ----------------------------
-# Populate states table
-# ----------------------------
-
+# Insert unique state and jurisdiction codes
 states = df["state"].dropna().unique()
 
 for state in states:
@@ -59,10 +56,7 @@ for state in states:
     VALUES (?)
     """, (state,))
 
-# ----------------------------
-# Populate incident types table
-# ----------------------------
-
+# Insert unique disaster incident types
 incident_types = df["incidentType"].dropna().unique()
 
 for incident in incident_types:
@@ -71,15 +65,13 @@ for incident in incident_types:
     VALUES (?)
     """, (incident,))
 
+# Save state and incident type records before inserting disaster records
 conn.commit()
 
-# ----------------------------
-# Populate disasters table
-# ----------------------------
-
+# Insert disaster records
 for _, row in df.iterrows():
 
-    # Get state_id
+    # Look up the matching state_id for this disaster record
     cursor.execute("""
     SELECT state_id FROM states
     WHERE state_code = ?
@@ -87,7 +79,7 @@ for _, row in df.iterrows():
 
     state_id = cursor.fetchone()[0]
 
-    # Get incident_type_id
+    # Look up the matching incident_type_id for this disaster record
     cursor.execute("""
     SELECT incident_type_id FROM incident_types
     WHERE incident_type = ?
@@ -95,7 +87,7 @@ for _, row in df.iterrows():
 
     incident_type_id = cursor.fetchone()[0]
 
-    # Insert disaster
+    # Insert the disaster record using foreign keys instead of repeating text values
     cursor.execute("""
     INSERT OR IGNORE INTO disasters (
         disaster_id,
@@ -117,6 +109,7 @@ for _, row in df.iterrows():
         incident_type_id
     ))
 
+# Save all disaster records and close the database connection
 conn.commit()
 conn.close()
 
