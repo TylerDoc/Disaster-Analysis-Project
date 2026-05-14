@@ -26,21 +26,23 @@ def get_int(prompt, default=None):
 class App:
     def __init__(self, dbpath):
         self.dbpath = dbpath
+        self.min_year = 0
+        self.max_year = 0
+        self.limit = 10
         
         if not self.dbpath.exists():
             raise FileNotFoundError(f"Database not found: {self.dbpath}")
 
         try:
             with self.connect() as conn:
-                conn.execute("SELECT 1")
+                self.min_year, self.max_year = self.db_year_range()
         except sqlite3.Error as e:
             raise RuntimeError(f"Could not connect to database: {e}")
 
     def connect(self):
         return sqlite3.connect(self.dbpath)
 
-    # data set starts in 1953 and ends in 2026
-    def disasters_by_year(self, start_year=1953, end_year=2026):
+    def disasters_by_year(self, start_year=None, end_year=None):
         query = """
         SELECT 
             fy_declared AS year,
@@ -54,8 +56,7 @@ class App:
         with self.connect() as conn:
             return conn.execute(query, (start_year, end_year)).fetchall()
 
-    # data set starts in 1953 and ends in 2026
-    def disasters_by_state(self, start_year=1953, end_year=2026, limit=10):
+    def disasters_by_state(self, start_year=None, end_year=None, limit=None):
         query = """
         SELECT 
             s.state_code,
@@ -71,8 +72,7 @@ class App:
         with self.connect() as conn:
             return conn.execute(query, (start_year, end_year, limit)).fetchall()
 
-    # data set starts in 1953 and ends in 2026
-    def disasters_by_type(self, start_year=1953, end_year=2026):
+    def disasters_by_type(self, start_year=None, end_year=None):
         query = """
         SELECT 
             it.incident_type,
@@ -122,8 +122,8 @@ class App:
         with self.connect() as conn:
             return conn.execute(query, params).fetchall()
     
-    # data set starts in 1953 and ends in 2026
-    def chart_disasters_by_year(self, start_year=1953, end_year=2026):
+
+    def chart_disasters_by_year(self, start_year=None, end_year=None):
         rows = self.disasters_by_year(start_year, end_year)
 
         years = [row[0] for row in rows]
@@ -138,8 +138,7 @@ class App:
         plt.tight_layout()
         plt.show()
 
-    # data set starts in 1953 and ends in 2026
-    def chart_top_states(self, start_year=1953, end_year=2026, limit=10):
+    def chart_top_states(self, start_year=None, end_year=None, limit=None):
         rows = self.disasters_by_state(start_year, end_year, limit)
 
         states = [row[0] for row in rows]
@@ -176,10 +175,9 @@ Disaster Analysis CLI
 6. Chart top states
 7. Exit
 """
-        min_year, max_year = self.db_year_range()
-        startyeartext = f"Start year [default {min_year}]: "
-        endyeartext = f"End year [default {max_year}]: "
-        limittext = "Limit [default 10]: "
+        startyeartext = f"Start year [default {self.min_year}]: "
+        endyeartext = f"End year [default {self.max_year}]: "
+        limittext = f"Limit [default {self.limit}]: "
 
         while True:
             print(helptext)
@@ -187,8 +185,8 @@ Disaster Analysis CLI
             selection = input("Choose an option: ").strip()
             match selection:
                 case "1":
-                    start_year = get_int(startyeartext, 1953)
-                    end_year = get_int(endyeartext, 2026)
+                    start_year = get_int(startyeartext, self.min_year)
+                    end_year = get_int(endyeartext, self.max_year)
 
                     rows = self.disasters_by_year(start_year, end_year)
 
@@ -198,9 +196,9 @@ Disaster Analysis CLI
                         print(f"{year} | {count}")
 
                 case "2":
-                    start_year = get_int(startyeartext, 1953)
-                    end_year = get_int(endyeartext, 2026)
-                    limit = get_int(limittext, 10)
+                    start_year = get_int(startyeartext, self.min_year)
+                    end_year = get_int(endyeartext, self.max_year)
+                    limit = get_int(limittext, self.limit)
 
                     rows = self.disasters_by_state(start_year, end_year, limit)
 
@@ -210,8 +208,8 @@ Disaster Analysis CLI
                         print(f"{state} | {count}")
 
                 case "3":
-                    start_year = get_int(startyeartext, 1953)
-                    end_year = get_int(endyeartext, 2026)
+                    start_year = get_int(startyeartext, self.min_year)
+                    end_year = get_int(endyeartext, self.max_year)
 
                     rows = self.disasters_by_type(start_year, end_year)
 
@@ -243,15 +241,15 @@ Disaster Analysis CLI
                         print(row)
 
                 case "5":
-                    start_year = get_int(startyeartext, 1953)
-                    end_year = get_int(endyeartext, 2026)
+                    start_year = get_int(startyeartext, self.min_year)
+                    end_year = get_int(endyeartext, self.max_year)
 
                     self.chart_disasters_by_year(start_year, end_year)
 
                 case "6":
-                    start_year = get_int(startyeartext, 1953)
-                    end_year = get_int(endyeartext, 2026)
-                    limit = get_int(limittext, 10)
+                    start_year = get_int(startyeartext, self.min_year)
+                    end_year = get_int(endyeartext, self.max_year)
+                    limit = get_int(limittext, self.limit)
 
                     self.chart_top_states(start_year, end_year, limit)
 
