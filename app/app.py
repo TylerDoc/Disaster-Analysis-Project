@@ -26,6 +26,15 @@ def get_int(prompt, default=None):
 class App:
     def __init__(self, dbpath):
         self.dbpath = dbpath
+        
+        if not self.dbpath.exists():
+            raise FileNotFoundError(f"Database not found: {self.dbpath}")
+
+        try:
+            with self.connect() as conn:
+                conn.execute("SELECT 1")
+        except sqlite3.Error as e:
+            raise RuntimeError(f"Could not connect to database: {e}")
 
     def connect(self):
         return sqlite3.connect(self.dbpath)
@@ -144,6 +153,17 @@ class App:
         plt.tight_layout()
         plt.show()
 
+    def db_year_range(self):
+        query = """
+        SELECT
+            MIN(fy_declared),
+            MAX(fy_declared)
+        FROM disasters;
+        """
+
+        with self.connect() as conn:
+            return conn.execute(query).fetchone()
+
     def REPL(self):
         helptext = """
 Disaster Analysis CLI
@@ -156,8 +176,9 @@ Disaster Analysis CLI
 6. Chart top states
 7. Exit
 """
-        startyeartext = "Start year [default 1953]: "
-        endyeartext = "End year [default 2026]: "
+        min_year, max_year = self.db_year_range()
+        startyeartext = f"Start year [default {min_year}]: "
+        endyeartext = f"End year [default {max_year}]: "
         limittext = "Limit [default 10]: "
 
         while True:
